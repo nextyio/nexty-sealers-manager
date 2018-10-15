@@ -121,6 +121,10 @@ contract NextyManager is Migratable, Blacklist {
         voteAddress = _to;
     }
 
+    function isBanned(address _address) public view {
+        return (sealers[_address].status == SealerStatus.PENALIZED);
+    }
+
     function sealerLock(address _address) external onlyVoteContract {
         address _coinbase = sealers[msg.sender].coinbase;
 
