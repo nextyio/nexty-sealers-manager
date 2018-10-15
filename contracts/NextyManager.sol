@@ -46,6 +46,7 @@ contract NextyManager is Migratable, Blacklist {
     }
 
     address public ntfAddress;
+    address public voteAddress;
 
     //get invester address of a coinbase
     mapping(address => Record) public sealers;
@@ -60,6 +61,8 @@ contract NextyManager is Migratable, Blacklist {
     event Joined(address _sealer, address _coinbase);
     event Leaved(address _sealer, address _coinbase);
     event Withdrawn(address _sealer, uint256 _tokens);
+    event Banned(address _sealer);
+    event Unbanned(address _sealer);
 
     /**
     * Check if address is a valid destination to transfer tokens to
@@ -74,6 +77,11 @@ contract NextyManager is Migratable, Blacklist {
         require(_coinbase != address(this), "same contract's address");
         require(_coinbase != owner, "same owner's address");
         require(_coinbase != msg.sender, "same sender's address");
+        _;
+    }
+
+    modifier notBanned() {
+        require(sealers[msg.sender].status != SealerStatus.PENALIZED, "banned ");
         _;
     }
 
@@ -96,11 +104,37 @@ contract NextyManager is Migratable, Blacklist {
         _;
     }
 
+    modifier onlyVoteContract() {
+        require(msg.sender == voteAddress, "only voting contract");
+        _;
+    }
+
     /**
     * Token contract initialize
     */
-    function NextyManager(address _ntfAddress) public{
+    function NextyManager(address _ntfAddress, address _voteAddress) public {
         ntfAddress = _ntfAddress;
+        voteAddress = _voteAddress;
+    }
+
+    function moveVoteContract(address _to) public onlyOwner {
+        voteAddress = _to;
+    }
+
+    function sealerLock(address _address) external onlyVoteContract {
+        address _coinbase = sealers[msg.sender].coinbase;
+
+        sealers[msg.sender].coinbase = 0x0;
+        sealers[msg.sender].status = SealerStatus.PENALIZED;
+        sealers[msg.sender].leavedBlocknumber = block.number;
+        delete getSealer[_coinbase];
+        removeCoinbase(_coinbase);
+        emit Banned(_address);
+    }
+
+    function sealerUnlock(address _address) external onlyVoteContract {
+        sealers[_address].status = SealerStatus.PENDING_WITHDRAW;
+        emit Unbanned(_address);
     }
 
     function addCoinbase(address _coinbase) internal {
@@ -137,7 +171,7 @@ contract NextyManager is Migratable, Blacklist {
     * It takes coinbase as parameter.
     * @param _coinbase Destination address
     */
-    function join(address _coinbase) public joinable validCoinbase(_coinbase) returns (bool) {
+    function join(address _coinbase) public notBanned joinable validCoinbase(_coinbase) returns (bool) {
         sealers[msg.sender].coinbase = _coinbase;
         sealers[msg.sender].status = SealerStatus.ACTIVE;
         getSealer[_coinbase] = msg.sender;
@@ -149,7 +183,7 @@ contract NextyManager is Migratable, Blacklist {
     /**
     * Request to exit out of activation sealer set
     */
-    function leave() public leaveable returns (bool) {
+    function leave() public notBanned leaveable returns (bool) {
         address _coinbase = sealers[msg.sender].coinbase;
 
         sealers[msg.sender].coinbase = 0x0;
@@ -164,7 +198,7 @@ contract NextyManager is Migratable, Blacklist {
     /**
     * To withdraw sealer’s NTF balance when they already exited and after withdrawal period.
     */
-    function withdraw() public withdrawable returns (bool) {
+    function withdraw() public notBanned withdrawable returns (bool) {
         uint256 tokens = sealers[msg.sender].balance;
         //NTFToken(ntfAddress).transfer(msg.sender, tokens);
         sealers[msg.sender].status = SealerStatus.WITHDRAWN;
