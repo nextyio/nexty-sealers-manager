@@ -7,7 +7,9 @@ import "./SafeMath.sol";
 import "./Blacklist.sol";
 
 contract NTFToken {
+    //need approve first with DApp to call this function
     function transferFrom(address _from, address _to, uint _tokens) public returns (bool success);
+    //function for withdraw the deposited ntf amount
     function transfer(address _to, uint256 _amount) public returns(bool success);
 }
 
@@ -40,12 +42,17 @@ contract NextyManager is Migratable, Blacklist {
 
     struct Record {
         SealerStatus status;
+        //ntf amount deposited
         uint256 balance;
+        //sealer used address to seal blocks
         address coinbase;
+        //blocknumber, that sealer leaved from sealers set. On first deposit got value of 0
         uint256 leavedBlocknumber;
     }
 
+    //ntf token contract, unit used to join Nexty sealers
     address public ntfAddress;
+    //voting smart contract to lock(bann) or unlock(unbann) a sealer
     address public voteAddress;
 
     //get invester address of a coinbase
@@ -55,6 +62,7 @@ contract NextyManager is Migratable, Blacklist {
     address[] public coinbases;
     //check if address of a coinbase
     mapping(address => bool) public isCoinbase;
+    //get sealer's address of a coinbase address
     mapping(address => address) public getSealer;
 
     event Deposited(address _sealer, uint _tokens);
@@ -99,32 +107,38 @@ contract NextyManager is Migratable, Blacklist {
     modifier withdrawable() {
         require(sealers[msg.sender].status != SealerStatus.ACTIVE, "NTF locked while sealing");
         uint256 currentBlock = block.number;
+        //distance from current block to the block, that sealer leaved sealers set
         uint256 distance = currentBlock.sub(sealers[msg.sender].leavedBlocknumber);
+        //withdrawl period
         require(distance >= MIN_BLOCKS_DISTANCE, "NTF still locked after leaving");
         _;
     }
 
+    //only voting smart contract
     modifier onlyVoteContract() {
         require(msg.sender == voteAddress, "only voting contract");
         _;
     }
 
     /**
-    * Token contract initialize
+    *contract initialize
     */
     function NextyManager(address _ntfAddress, address _voteAddress) public {
         ntfAddress = _ntfAddress;
         voteAddress = _voteAddress;
     }
 
+    //change voting smart contract address
     function moveVoteContract(address _to) public onlyOwner {
         voteAddress = _to;
     }
 
+    //get bann status of a sealer's address
     function isBanned(address _address) public view {
         return (sealers[_address].status == SealerStatus.PENALIZED);
     }
 
+    //voting contract's function
     function sealerLock(address _address) external onlyVoteContract {
         address _coinbase = sealers[msg.sender].coinbase;
 
@@ -140,6 +154,8 @@ contract NextyManager is Migratable, Blacklist {
         sealers[_address].status = SealerStatus.PENDING_WITHDRAW;
         emit Unbanned(_address);
     }
+
+    ////////////////////////////////
 
     function addCoinbase(address _coinbase) internal {
         isCoinbase[_coinbase] = true;
