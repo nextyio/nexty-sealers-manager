@@ -11,7 +11,6 @@ import "openzeppelin-zos/contracts/ownership/Ownable.sol";
  */
 contract NTFToken is Migratable, StandardToken, Ownable {
 
-  string public constant SYMBOL = "NTF";
   string public constant NAME = "Nexty Foundation Token";
   uint8 public constant DECIMALS = 18;
   uint256 public constant INITIAL_SUPPLY = 10;
