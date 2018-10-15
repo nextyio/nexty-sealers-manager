@@ -89,10 +89,10 @@ contract NextyManager is Migratable, Blacklist {
     }
 
     modifier withdrawable() {
-        require(sealers[msg.sender].status == SealerStatus.PENDING_WITHDRAW, "not pending for withdraw");
+        require(sealers[msg.sender].status != SealerStatus.ACTIVE, "NTF locked while sealing");
         uint256 currentBlock = block.number;
         uint256 distance = currentBlock.sub(sealers[msg.sender].leavedBlocknumber);
-        require(distance >= MIN_BLOCKS_DISTANCE, "still locked after leaving");
+        require(distance >= MIN_BLOCKS_DISTANCE, "NTF still locked after leaving");
         _;
     }
 
